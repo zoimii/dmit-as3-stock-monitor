@@ -1,0 +1,294 @@
+name: DMIT purchase-page diagnostic
+run-name: DMIT purchase-page diagnostic (PID 253 + 254)
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: dmit-purchase-page-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  diagnostic:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Diagnose official purchase pages with redacted output
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          """Manual, bounded, anonymous GET diagnostics for exactly two DMIT products."""
+          import hashlib
+          import http.cookiejar
+          import json
+          import os
+          import re
+          import socket
+          import ssl
+          import time
+          from datetime import datetime, timedelta, timezone
+          from html.parser import HTMLParser
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
+          from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
+
+          PRODUCTS = {253: "LAX.AS3.Pro.TINY", 254: "LAX.AS3.Pro.Pocket"}
+          HOSTS = {"www.dmit.io", "dmit.io"}
+          SAFE_PATHS = {"/", "/cart.php", "/pages/pricing", "/login", "/index.php", "/clientarea.php"}
+          LIMIT = 1_000_000
+          MAX_REDIRECTS = 3
+
+
+          def stamp():
+              now = datetime.now(timezone.utc)
+              return {"time_utc": now.isoformat(timespec="seconds"),
+                      "time_shanghai": now.astimezone(timezone(timedelta(hours=8))).isoformat(timespec="seconds")}
+
+
+          def safe_url(url):
+              """Only known hosts, paths and non-sensitive query values may reach logs."""
+              try:
+                  p = urlsplit(url)
+                  host = p.hostname if p.hostname in HOSTS else "[REDACTED_HOST]"
+                  path = p.path if p.path in SAFE_PATHS else "/[REDACTED_PATH]"
+                  pairs = []
+                  redacted = bool(p.username or p.password or p.fragment or p.port not in (None, 443))
+                  for key, values in parse_qs(p.query, keep_blank_values=True, max_num_fields=30).items():
+                      allowed = {"a": {"add", "confproduct", "view"}, "pid": {"253", "254"}}
+                      if len(values) == 1 and values[0] in allowed.get(key, set()):
+                          pairs.append((key, values[0]))
+                      else:
+                          redacted = True
+                  if redacted:
+                      pairs.append(("redacted", "1"))
+                  return urlunsplit(("https", host, path, urlencode(pairs), ""))
+              except (ValueError, TypeError):
+                  return "[REDACTED_URL]"
+
+
+          def redirect_allowed(url, pid):
+              try:
+                  p = urlsplit(url)
+                  if (p.scheme != "https" or p.hostname not in HOSTS or p.port not in (None, 443)
+                          or p.username or p.password or p.fragment):
+                      return False
+                  q = parse_qs(p.query, keep_blank_values=True, max_num_fields=30)
+                  if p.path == "/cart.php":
+                      if set(q) - {"a", "pid", "i"} or any(len(v) != 1 for v in q.values()):
+                          return False
+                      return (q.get("a") in (None, ["add"], ["confproduct"], ["view"])
+                              and q.get("pid") in (None, [str(pid)])
+                              and ("i" not in q or bool(re.fullmatch(r"[0-9]{1,3}", q["i"][0]))))
+                  if p.path in {"/pages/pricing", "/login", "/clientarea.php"}:
+                      return not q
+                  return p.path == "/index.php" and q == {"rp": ["/login"]}
+              except (TypeError, ValueError):
+                  return False
+
+
+          class NoRedirect(HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+
+          class VisibleHTML(HTMLParser):
+              """Small evidence parser; no JavaScript execution, form submission or raw text logging."""
+              VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+
+              def __init__(self, body):
+                  super().__init__(convert_charrefs=True)
+                  self.nodes = []
+                  self.stack = []
+                  self.feed(body)
+
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  hidden = (any(n["hidden"] for n in self.stack) or tag in {"script", "style", "template", "noscript"}
+                            or "hidden" in a or a.get("aria-hidden") == "true"
+                            or bool(set(a.get("class", "").split()) & {"hidden", "d-none", "w-hidden"})
+                            or bool(re.search(r"display\s*:\s*none|visibility\s*:\s*hidden", a.get("style", ""), re.I)))
+                  n = {"tag": tag, "attrs": a, "hidden": hidden, "text": [], "parents": tuple(self.stack)}
+                  self.nodes.append(n)
+                  if tag not in self.VOID:
+                      self.stack.append(n)
+
+              def handle_startendtag(self, tag, attrs):
+                  self.handle_starttag(tag, attrs)
+                  if tag not in self.VOID:
+                      self.handle_endtag(tag)
+
+              def handle_endtag(self, tag):
+                  for i in range(len(self.stack) - 1, -1, -1):
+                      if self.stack[i]["tag"] == tag:
+                          del self.stack[i:]
+                          break
+
+              def handle_data(self, text):
+                  if not any(n["hidden"] for n in self.stack):
+                      for n in self.stack:
+                          n["text"].append(text)
+
+
+          def normalized(parts):
+              return re.sub(r"\s+", " ", " ".join(parts)).strip().casefold()
+
+
+          def classify(status, mime, body, url, pid, truncated=False):
+              if status == 403:
+                  return "403", "http_403"
+              if status == 429:
+                  return "其他", "rate_limited_no_retry"
+              if status != 200:
+                  return "其他", "non_200_response"
+              if truncated:
+                  return "其他", "body_limit_exceeded"
+              if mime not in {"text/html", "application/xhtml+xml"}:
+                  return "其他", "non_html_response"
+              low = body.casefold()
+              if any(x in low for x in ("cf-chl-", "challenge-platform", "verify you are human", "just a moment", "g-recaptcha", "hcaptcha")):
+                  return "其他", "challenge_or_captcha_no_bypass"
+              p = urlsplit(url)
+              if p.path == "/pages/pricing":
+                  return "其他", "pricing_display_only"
+              q = parse_qs(p.query)
+              if p.path in {"/login", "/clientarea.php"} or q.get("rp") == ["/login"]:
+                  return "其他", "login_page_no_login_attempted"
+              if (p.path != "/cart.php" or q.get("pid") not in (None, [str(pid)])
+                      or q.get("a") not in (["add"], ["confproduct"], ["view"])):
+                  return "其他", "not_target_purchase_route"
+              doc = VisibleHTML(body)
+              nodes = [n for n in doc.nodes if not n["hidden"]]
+              headings = [normalized(n["text"]) for n in nodes if n["tag"] in {"h1", "h2"}]
+              text = " ".join(normalized(n["text"]) for n in nodes if n["tag"] in {"p", "div"})
+              if (any(x in {"out of stock", "sold out", "缺货", "售罄"} for x in headings)
+                      or "we are currently out of stock on this item" in text):
+                  return "Out of Stock", "explicit_purchase_page_stock_message"
+              name = PRODUCTS[pid].casefold()
+              for n in nodes:
+                  classes = set(n["attrs"].get("class", "").split())
+                  if normalized(n["text"]) != name:
+                      continue
+                  if "product-title" in classes:
+                      forms = [a for a in n["parents"] if a["tag"] == "form" and a["attrs"].get("id") == "frmConfigureProduct"]
+                      if forms:
+                          fields = [a for a in nodes if a["tag"] == "input" and a["attrs"].get("name") == "pid"
+                                    and any(parent is forms[0] for parent in a["parents"])]
+                          if any(a["attrs"].get("value") != str(pid) for a in fields):
+                              return "其他", "configuration_product_id_mismatch"
+                          return "配置或购物车", "matching_product_configuration_form_observed"
+                  if "item-title" in classes and any("view-cart-items" in a["attrs"].get("class", "").split() for a in n["parents"]):
+                      return "配置或购物车", "matching_product_cart_item_observed"
+              return "其他", "unrecognized_purchase_page"
+
+
+          def error_code(exc):
+              reason = exc.reason if isinstance(exc, URLError) else exc
+              if isinstance(reason, ssl.SSLError):
+                  return "tls_error"
+              if isinstance(reason, socket.gaierror):
+                  return "dns_error"
+              if isinstance(reason, (TimeoutError, socket.timeout)):
+                  return "request_timeout"
+              return "network_error"
+
+
+          def probe(pid, pause=time.sleep, opener=None):
+              if pid not in PRODUCTS:
+                  raise ValueError("product_not_allowlisted")
+              url = f"https://www.dmit.io/cart.php?a=add&pid={pid}"
+              result = {"pid": pid, "product": PRODUCTS[pid], **stamp(), "http_status": None,
+                        "final_url": None, "content_type": None, "classification": "其他",
+                        "reason": "not_started", "purchase_page_readable": False, "hops": []}
+              start = time.monotonic()
+              # Fresh, anonymous, in-memory cookies per PID; never saved or printed.
+              if opener is None:
+                  from urllib.request import HTTPCookieProcessor
+                  opener = build_opener(HTTPSHandler(context=ssl.create_default_context()), NoRedirect(),
+                                        HTTPCookieProcessor(http.cookiejar.CookieJar()))
+              try:
+                  for hop in range(MAX_REDIRECTS + 1):
+                      req = Request(url, method="GET", headers={
+                          "User-Agent": "DMIT-Page-Diagnostic/1.0 (manual anonymous GET; no retries)",
+                          "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.8"})
+                      try:
+                          response = opener.open(req, timeout=15)
+                      except HTTPError as exc:
+                          response = exc
+                      with response as r:
+                          status = r.code
+                          raw_type = r.headers.get_content_type().lower() if r.headers.get("Content-Type") else ""
+                          mime = raw_type if raw_type in {"text/html", "application/xhtml+xml", "application/json", "text/plain"} else "other_or_unspecified"
+                          data = r.read(LIMIT + 1)
+                          location = r.headers.get("Location")
+                      meta = {"url": safe_url(url), "http_status": status, "content_type": mime, **stamp()}
+                      result["hops"].append(meta)
+                      result.update(http_status=status, final_url=safe_url(url), content_type=mime,
+                                    response_bytes_read=len(data), body_truncated=len(data) > LIMIT)
+                      if status in {301, 302, 303, 307, 308}:
+                          destination = urljoin(url, location or "")
+                          meta["redirect_to"] = safe_url(destination)
+                          if not location or not redirect_allowed(destination, pid):
+                              result["reason"] = "redirect_not_followed_outside_safe_routes"
+                              break
+                          if hop == MAX_REDIRECTS:
+                              result["reason"] = "redirect_limit_reached"
+                              break
+                          url = destination
+                          pause(5)
+                          continue
+                      result["response_sha256"] = hashlib.sha256(data).hexdigest()
+                      category, reason = classify(status, mime, data[:LIMIT].decode("utf-8", "replace"), url, pid, len(data) > LIMIT)
+                      result.update(classification=category, reason=reason,
+                                    purchase_page_readable=category in {"Out of Stock", "配置或购物车"})
+                      break
+              except (URLError, OSError, TimeoutError) as exc:
+                  result.update(reason=error_code(exc), http_status=None, content_type=None,
+                                final_url=None, attempted_url=safe_url(url))
+              except Exception:
+                  # Fail closed; exception text may contain URLs, headers or page fragments.
+                  result.update(reason="diagnostic_internal_error", purchase_page_readable=False)
+              result["elapsed_seconds"] = round(time.monotonic() - start, 3)
+              result["completed_time_utc"] = stamp()["time_utc"]
+              return result
+
+
+          def main():
+              results = []
+              for pid in PRODUCTS:
+                  if results and results[-1]["http_status"] == 429:
+                      result = {"pid": pid, "product": PRODUCTS[pid], **stamp(), "http_status": None,
+                                "final_url": None, "content_type": None, "classification": "其他",
+                                "reason": "skipped_after_site_rate_limit", "purchase_page_readable": False, "hops": []}
+                  else:
+                      if results:
+                          time.sleep(10)
+                      result = probe(pid)
+                  results.append(result)
+                  print(json.dumps(result, ensure_ascii=False), flush=True)
+              summary = ["## DMIT anonymous purchase-page diagnostic", "",
+                         "Environment: GitHub-hosted ubuntu-24.04. Manual run; no retries, login, POST or checkout.",
+                         "", "| PID | Product | HTTP | Type | Classification | Reason | Time (Asia/Shanghai) |",
+                         "|---|---|---|---|---|---|---|"]
+              for r in results:
+                  summary.append(f"| {r['pid']} | {r['product']} | {r['http_status'] or '—'} | {r['content_type'] or '—'} | {r['classification']} | {r['reason']} | {r['time_shanghai']} |")
+              summary.append("")
+              for r in results:
+                  summary.append(f"PID {r['pid']} final URL (redacted): `{r['final_url'] or 'not requested'}`")
+                  summary.append("")
+              summary += ["", "Out of Stock means the purchase page was readable at that time, and explicitly reported no stock.",
+                          "A configuration/cart page only establishes page reachability; it does not verify inventory or ability to complete an order.",
+                          "403, challenge, pricing, login, unknown or transport failure cannot verify purchase-page readability.",
+                          "Logs contain only allowlisted metadata and fixed evidence codes; no raw HTML, Cookie, Set-Cookie, authorization, secrets or exception text."]
+              path = os.environ.get("GITHUB_STEP_SUMMARY")
+              if path:
+                  with open(path, "a", encoding="utf-8") as f:
+                      f.write("\n".join(summary) + "\n")
+              return 0 if all(r["purchase_page_readable"] for r in results) else 2
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main())
+          PYTHON
