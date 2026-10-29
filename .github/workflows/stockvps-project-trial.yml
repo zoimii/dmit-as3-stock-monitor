@@ -1,0 +1,241 @@
+name: StockVPS guarded project trial
+run-name: StockVPS one-shot trial for DMIT PID 253 and 254
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: stockvps-guarded-project-trial
+  cancel-in-progress: false
+
+jobs:
+  trial:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Prepare pinned upstream source and guarded one-shot harness
+        shell: bash
+        run: |
+          python3 - <<'STOCKVPS_BOOTSTRAP'
+          import base64,gzip,hashlib,json,os
+          from pathlib import Path
+          from urllib.request import Request,urlopen
+          root=Path(os.environ['RUNNER_TEMP'])/'stockvps-project-trial'
+          root.mkdir(parents=True,exist_ok=True)
+          manifest={'name': 'dmit-stockvps-diagnostic', 'private': True, 'version': '1.0.0', 'type': 'commonjs', 'dependencies': {'cheerio': '1.2.0', 'impit': '0.14.1'}}
+          root.joinpath('package.json').write_text(json.dumps(manifest)+'\n')
+          lock=gzip.decompress(base64.b64decode('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'))
+          assert hashlib.sha256(lock).hexdigest()=='00d960b571972e9d60820ae804c2ac0cac0f532b8104146ba74735e99a6a03ff'
+          root.joinpath('package-lock.json').write_bytes(lock)
+          state={'repository': 'izhichao/stockvps-monitor', 'commit': 'f9e1671e32e3565851ac13075525bc1d31a6cc14', 'monitor_sha256': 'f7f73bb5f253993960005821e1e84e16ed55b0d6efdce1c5697d9f5f230a7dad'}
+          url='https://raw.githubusercontent.com/'+state['repository']+'/'+state['commit']+'/monitor.js'
+          with urlopen(Request(url,headers={'User-Agent':'StockVPS-Safe-Trial/1.0'}),timeout=30) as r:
+              body=r.read(1000001)
+          assert len(body)<=1000000 and hashlib.sha256(body).hexdigest()==state['monitor_sha256']
+          root.joinpath('upstream-monitor.js').write_bytes(body)
+          root.joinpath('upstream.json').write_text(json.dumps(state)+'\n')
+          print(json.dumps({'pinned_upstream_commit':state['commit'],'source_hash_verified':True,'dependency_lock_sha256':hashlib.sha256(lock).hexdigest()}))
+          STOCKVPS_BOOTSTRAP
+          cat > "$RUNNER_TEMP/stockvps-project-trial/trial.cjs" <<'STOCKVPS_JS'
+          'use strict';
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const vm = require('node:vm');
+          const crypto = require('node:crypto');
+          const cheerio = require('cheerio');
+          const { Impit } = require('impit');
+
+          const PRODUCTS = { 253: 'LAX.AS3.Pro.TINY', 254: 'LAX.AS3.Pro.Pocket' };
+          const LIMIT = 1_000_000;
+          const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+          const stamp = () => ({ time_utc: new Date().toISOString(), time_shanghai: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Shanghai' }) + ' +08:00' });
+
+          function allowedUrl(value, pid) {
+            try {
+              const u = new URL(value);
+              if (u.protocol !== 'https:' || !['www.dmit.io', 'dmit.io'].includes(u.hostname) || u.port || u.username || u.password || u.hash || u.pathname !== '/cart.php') return false;
+              for (const key of u.searchParams.keys()) if (!['a', 'pid', 'i'].includes(key) || u.searchParams.getAll(key).length !== 1) return false;
+              const a = u.searchParams.get('a');
+              if (!['add', 'confproduct', 'view'].includes(a)) return false;
+              const id = u.searchParams.get('pid');
+              if ((id && id !== String(pid)) || (a === 'add' && id !== String(pid))) return false;
+              return !u.searchParams.has('i') || u.searchParams.get('i') === '0';
+            } catch { return false; }
+          }
+
+          function safeUrl(value) {
+            try {
+              const u = new URL(value);
+              const host = ['www.dmit.io', 'dmit.io'].includes(u.hostname) ? u.hostname : '[REDACTED_HOST]';
+              const pathname = u.pathname === '/cart.php' ? '/cart.php' : '/[REDACTED_PATH]';
+              const q = new URLSearchParams();
+              let redacted = !!(u.username || u.password || u.hash || u.port);
+              for (const [key, value] of u.searchParams) {
+                const values = { a: ['add', 'confproduct', 'view'], pid: ['253', '254'] };
+                if (values[key]?.includes(value) && u.searchParams.getAll(key).length === 1) q.append(key, value);
+                else redacted = true;
+              }
+              if (redacted) q.set('redacted', '1');
+              return `https://${host}${pathname}${q.size ? '?' + q : ''}`;
+            } catch { return '[REDACTED_URL]'; }
+          }
+
+          function classify(status, mime, body, url, pid) {
+            if (status === 403) return ['403', 'http_403'];
+            if (status === 429) return ['其他', 'rate_limit_no_retry'];
+            if (status !== 200) return ['其他', 'non_200_response'];
+            if (!['text/html', 'application/xhtml+xml'].includes(mime)) return ['其他', 'non_html_response'];
+            const $ = cheerio.load(body);
+            const title = $('title').text().toLowerCase();
+            const low = body.toLowerCase();
+            if (title.includes('just a moment') || title.includes('attention required') || low.includes('cf-chl-') || low.includes('verify you are human')) return ['其他', 'challenge_no_bypass'];
+            $('script,style,template,noscript,[hidden],[aria-hidden="true"],.hidden,.d-none,.w-hidden').remove();
+            const norm = value => value.replace(/\s+/g, ' ').trim().toLowerCase();
+            const stockHeading = $('h1,h2').toArray().some(el => ['out of stock', 'sold out', '缺货', '售罄'].includes(norm($(el).text())));
+            if (stockHeading || norm($('body').text()).includes('we are currently out of stock on this item')) return ['Out of Stock', 'explicit_purchase_page_stock_message'];
+            const expected = PRODUCTS[pid].toLowerCase();
+            const forms = $('#frmConfigureProduct');
+            const named = forms.find('.product-title').toArray().some(el => norm($(el).text()) === expected);
+            const wrongPid = forms.find('input[name="pid"]').toArray().some(el => $(el).attr('value') !== String(pid));
+            if (named && !wrongPid) return ['配置或购物车', 'matching_configuration_product_observed'];
+            if ($('.view-cart-items .item-title').toArray().some(el => norm($(el).text()) === expected)) return ['配置或购物车', 'matching_cart_product_observed'];
+            return ['其他', 'unrecognized_purchase_page'];
+          }
+
+          function loadSource() {
+            const state = JSON.parse(fs.readFileSync(path.join(__dirname, 'upstream.json'), 'utf8'));
+            const original = fs.readFileSync(path.join(__dirname, 'upstream-monitor.js'), 'utf8');
+            if (crypto.createHash('sha256').update(original).digest('hex') !== state.monitor_sha256) throw new Error('source_hash_mismatch');
+            const start = original.indexOf('\nclient\n  .fetch(`${STOCKVPS_API}/api/script/version`)');
+            const end = original.indexOf('\nfunction main() {', start);
+            if (start < 0 || end <= start) throw new Error('unrecognized_upstream_startup');
+            // Remove only auto-start/version lookup. checkStock and its stock decisions remain unchanged.
+            return { state, code: original.slice(0, start) + original.slice(end) };
+          }
+
+          async function runOne(pid, source, nativeFactory, pause = sleep) {
+            if (!Object.hasOwn(PRODUCTS, pid)) throw new Error('pid_not_allowlisted');
+            const result = { pid, product: PRODUCTS[pid], ...stamp(), http_status: null, final_url: null,
+              content_type: null, classification: '其他', reason: 'no_response', original_verdict: 'no_verdict',
+              purchase_page_readable: false, notifications_suppressed: 0, blocked_requests: 0, hops: [] };
+            const begin = performance.now();
+            let count = 0;
+            let lastRequest = 0;
+            // A separate transport and context for each PID; no browser profile or persistent cookie jar.
+            const native = nativeFactory ? nativeFactory() : new Impit({ ignoreTlsErrors: false, timeout: 15000, followRedirects: false });
+            class RestrictedImpit {
+              async fetch(value, options = {}) {
+                if (!allowedUrl(value, pid) || (options.method && options.method.toUpperCase() !== 'GET') || options.body != null || count >= 5) {
+                  result.blocked_requests++;
+                  result.reason = 'request_blocked_by_trial_scope';
+                  throw new Error('trial_scope_guard');
+                }
+                if (lastRequest) await pause(Math.max(0, 5000 - (performance.now() - lastRequest)));
+                count++;
+                lastRequest = performance.now();
+                let response;
+                try {
+                  response = await native.fetch(value, { ...options, method: 'GET', redirect: 'manual', timeout: 15000,
+                    headers: { ...options.headers, 'User-Agent': 'StockVPS-Safe-Trial/1.0 (manual anonymous GET; no retries)' } });
+                } catch {
+                  result.reason = 'transport_error';
+                  throw new Error('transport_error');
+                }
+                const rawType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+                const mime = ['text/html', 'application/xhtml+xml', 'application/json', 'text/plain'].includes(rawType) ? rawType : 'other_or_unspecified';
+                const meta = { url: safeUrl(value), http_status: response.status, content_type: mime, ...stamp() };
+                result.hops.push(meta);
+                Object.assign(result, { http_status: response.status, final_url: safeUrl(value), content_type: mime });
+                const location = response.headers.get('location');
+                if (location) meta.redirect_to = safeUrl(new URL(location, value).href);
+                let cached;
+                return {
+                  status: response.status, url: value, headers: response.headers,
+                  text: async () => {
+                    if (cached !== undefined) return cached;
+                    cached = await response.text();
+                    const bytes = Buffer.byteLength(cached);
+                    result.response_bytes = bytes;
+                    if (bytes > LIMIT) { result.reason = 'body_limit_exceeded'; throw new Error('body_limit_exceeded'); }
+                    result.response_sha256 = crypto.createHash('sha256').update(cached).digest('hex');
+                    const [category, reason] = classify(response.status, mime, cached, value, pid);
+                    Object.assign(result, { classification: category, reason, purchase_page_readable: ['Out of Stock', '配置或购物车'].includes(category) });
+                    return cached;
+                  }
+                };
+              }
+            }
+            const capture = (...args) => {
+              const text = args.filter(x => typeof x === 'string').join(' ');
+              if (/监控 \d+ 有货$/.test(text)) result.original_verdict = 'available';
+              else if (/监控 \d+ 无货$/.test(text)) result.original_verdict = 'sold_out';
+              else if (/请求失败，状态码: \d+$/.test(text)) result.original_verdict = 'request_failed';
+              else if (/监控 \d+ 未上架$/.test(text)) result.original_verdict = 'unlisted';
+              // All other upstream output, including arbitrary HTML-derived notification text, is discarded.
+            };
+            const context = vm.createContext({
+              require: name => {
+                if (name === 'url') return { URL };
+                if (name === 'impit') return { Impit: RestrictedImpit };
+                if (name === 'cheerio') return cheerio;
+                if (name === './sendNotify.js') return { sendNotify: async () => { result.notifications_suppressed++; } };
+                throw new Error('module_not_allowlisted');
+              },
+              process: { env: { STOCKVPS_URLS: `https://www.dmit.io/cart.php?a=add&pid=${pid}`, STOCKVPS_LOGS: 'true', STOCKVPS_PROXY: '', STOCKVPS_FS_PROXY: '', STOCKVPS_FS_URL: '' } },
+              console: { log: capture, error: () => { result.upstream_exception = true; } },
+              URL, setInterval: () => { throw new Error('polling_disabled'); },
+              fetch: async () => { result.blocked_requests++; throw new Error('global_fetch_disabled'); },
+              diagnosticUrl: `https://www.dmit.io/cart.php?a=add&pid=${pid}`, diagnosticIndex: 1
+            });
+            vm.runInContext(source.code, context, { timeout: 1000 });
+            // Suppress the URL-rewriting/affiliate request while retaining stock detection and page templates.
+            vm.runInContext("notifyTemplate = async () => '[notification suppressed for diagnostic]'; notifyStatus[diagnosticUrl] = true;", context);
+            await vm.runInContext('checkStock(diagnosticUrl, diagnosticIndex)', context, { timeout: 1000 });
+            result.elapsed_seconds = Math.round((performance.now() - begin) / 10) / 100;
+            result.completed_time_utc = new Date().toISOString();
+            result.requests_sent = count;
+            return result;
+          }
+
+          async function main() {
+            const source = loadSource();
+            const report = { project: source.state.repository, upstream_commit: source.state.commit, source_sha256: source.state.monitor_sha256,
+              environment: 'GitHub-hosted ubuntu-24.04', node: process.version, impit: '0.14.1', cheerio: '1.2.0',
+              trial_mode: 'one-shot guarded original checkStock; generic Impit transport',
+              browser_emulation: false, waf_solver: false, proxy: false, third_party_stats: false, actual_notifications: false, observations: [] };
+            for (const pid of [253, 254]) {
+              if (report.observations.at(-1)?.http_status === 429) {
+                report.observations.push({ pid, product: PRODUCTS[pid], ...stamp(), http_status: null, final_url: null, content_type: null,
+                  classification: '其他', reason: 'skipped_after_rate_limit', original_verdict: 'not_run', purchase_page_readable: false });
+                break;
+              }
+              if (report.observations.length) await sleep(10000);
+              const row = await runOne(pid, source);
+              report.observations.push(row);
+              console.log(JSON.stringify(row));
+            }
+            fs.writeFileSync(path.join(__dirname, 'trial-results.json'), JSON.stringify(report, null, 2) + '\n');
+            console.log(JSON.stringify({ trial_metadata: { ...report, observations: undefined } }));
+            if (process.env.GITHUB_STEP_SUMMARY) {
+              const lines = ['## StockVPS guarded project trial', '', `Upstream: ${report.project}@${report.upstream_commit}`, '',
+                'Original checkStock ran once per PID. Browser emulation, WAF solver, proxy, statistics and real notifications were disabled.', '',
+                '| PID | HTTP | Content type | Page classification | Original verdict | Time (Asia/Shanghai) |', '|---|---|---|---|---|---|'];
+              for (const r of report.observations) lines.push(`| ${r.pid} | ${r.http_status ?? '—'} | ${r.content_type ?? '—'} | ${r.classification} | ${r.original_verdict} | ${r.time_shanghai} |`);
+              lines.push('', 'Configuration/cart reachability does not establish ability to complete an order. 403 and unknown responses cannot determine stock.');
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
+            }
+            return report.observations.every(r => r.purchase_page_readable) ? 0 : 2;
+          }
+
+          module.exports = { allowedUrl, safeUrl, classify, loadSource, runOne };
+          if (require.main === module) main().then(code => { process.exitCode = code; }).catch(() => { console.error('{"trial_error":"runtime_error_redacted"}'); process.exitCode = 1; });
+          STOCKVPS_JS
+      - name: Install locked dependencies without installation scripts
+        working-directory: ${{ runner.temp }}/stockvps-project-trial
+        run: npm ci --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org
+      - name: Run original stock checks once with redacted diagnostics
+        working-directory: ${{ runner.temp }}/stockvps-project-trial
+        run: node trial.cjs
