@@ -3,25 +3,29 @@
   "products": {
     "253": {
       "armed": true,
+      "checked_at": 1793762371,
+      "digest": "00408ea6ac653e856d0ec82cd1c55efa8778d60b083a3b3ed83d2902c5f928fe",
       "episode": 0,
-      "failures": 0,
+      "failures": 1,
       "last_health_alert": 0,
-      "next_check": 0,
-      "reason": "not_checked",
+      "next_check": 1793762671,
+      "reason": "official_http_403",
       "sold_out_streak": 0,
-      "status": "uninitialized"
+      "status": "unknown"
     },
     "254": {
       "armed": true,
+      "checked_at": 1793762371,
+      "digest": "a0160872ccfeda379ea9b7cc1b98e2fafe6d1a64db234b51ba51b268011ece93",
       "episode": 0,
-      "failures": 0,
+      "failures": 1,
       "last_health_alert": 0,
-      "next_check": 0,
-      "reason": "not_checked",
+      "next_check": 1793762671,
+      "reason": "official_http_403",
       "sold_out_streak": 0,
-      "status": "uninitialized"
+      "status": "unknown"
     }
   },
   "schema": 1,
-  "updated_at": 0
+  "updated_at": 1793762371
 }
