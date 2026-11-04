@@ -3,29 +3,29 @@
   "products": {
     "253": {
       "armed": true,
-      "checked_at": 1793762371,
-      "digest": "00408ea6ac653e856d0ec82cd1c55efa8778d60b083a3b3ed83d2902c5f928fe",
+      "checked_at": 1793786193,
+      "digest": "df3cfd8bfec8f84c93e517da4e092d4ce851a2d07c1266b4c7ce474ed2866695",
       "episode": 0,
-      "failures": 1,
+      "failures": 2,
       "last_health_alert": 0,
-      "next_check": 1793762671,
+      "next_check": 1793786793,
       "reason": "official_http_403",
       "sold_out_streak": 0,
       "status": "unknown"
     },
     "254": {
       "armed": true,
-      "checked_at": 1793762371,
-      "digest": "a0160872ccfeda379ea9b7cc1b98e2fafe6d1a64db234b51ba51b268011ece93",
+      "checked_at": 1793786193,
+      "digest": "ee7859479276b9269f07029e4c8c486f1454f2cd6ba6c2d52798e2ea8a324826",
       "episode": 0,
-      "failures": 1,
+      "failures": 2,
       "last_health_alert": 0,
-      "next_check": 1793762671,
+      "next_check": 1793786793,
       "reason": "official_http_403",
       "sold_out_streak": 0,
       "status": "unknown"
     }
   },
   "schema": 1,
-  "updated_at": 1793762371
+  "updated_at": 1793786193
 }
