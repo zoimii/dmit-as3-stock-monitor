@@ -1,0 +1,27 @@
+{
+  "outbox": {},
+  "products": {
+    "253": {
+      "armed": true,
+      "episode": 0,
+      "failures": 0,
+      "last_health_alert": 0,
+      "next_check": 0,
+      "reason": "not_checked",
+      "sold_out_streak": 0,
+      "status": "uninitialized"
+    },
+    "254": {
+      "armed": true,
+      "episode": 0,
+      "failures": 0,
+      "last_health_alert": 0,
+      "next_check": 0,
+      "reason": "not_checked",
+      "sold_out_streak": 0,
+      "status": "uninitialized"
+    }
+  },
+  "schema": 1,
+  "updated_at": 0
+}
