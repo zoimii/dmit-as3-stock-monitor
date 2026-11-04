@@ -8,3 +8,6 @@ state.json
 *.tmp
 work/
 .DS_Store
+node_modules/
+browser-profile/
+runtime/

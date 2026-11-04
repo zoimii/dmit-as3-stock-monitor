@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><title>DMIT AS3 监控</title>
+<style>body{font:14px/1.6 system-ui,sans-serif;width:350px;padding:18px;color:#202124;margin:0}h1{font-size:19px;margin:0 0 12px}p{margin:10px 0}.scope{padding:10px;background:#f3f5f7;border-radius:8px}button{padding:8px 14px;margin:8px 5px 0 0;border:1px solid #ccc;border-radius:7px;background:white;cursor:pointer}#start{background:#166534;color:white;border-color:#166534}#status{white-space:pre-line;padding:10px;border-left:3px solid #999}small{color:#555}button:disabled{opacity:.5}</style></head>
+<body><h1>DMIT AS3 官方库存监控</h1><div class="scope">TINY · PID 253<br>Pocket · PID 254<br>正常每 5 分钟检查；无法验证时自动退避。</div>
+<p id="status">读取状态中…</p>
+<p><small>开始后，仅将 DMIT 的 3 种 Cloudflare 验证 Cookie 在 Chrome 内复制到专用无痕窗口，不复制登录 Cookie。原始页面只交给本机验证桥，Telegram 密钥留在 GitHub Secrets。只有官网配置、购物车与结算均验证通过才报补货，不提交订单。</small></p>
+<button id="start">同意并开始监控</button><button id="check">按计划检查</button><button id="pause">暂停</button>
+<p><small>请先在扩展详情中打开“在无痕模式下启用”。监控时保持 Chrome 运行、Mac 开机联网。专用无痕窗口请勿用于其他浏览；打开其他无痕窗口时会暂停采集。</small></p>
+<script src="popup.js"></script></body></html>

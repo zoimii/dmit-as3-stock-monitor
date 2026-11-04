@@ -15,3 +15,8 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 -m unittest discover -s tests -v
+      - name: Verify browser request guard
+        run: |
+          npm --prefix browser ci --ignore-scripts --no-audit --no-fund
+          node --test browser/collector.test.cjs
+          node --test browser-extension/safety.test.cjs

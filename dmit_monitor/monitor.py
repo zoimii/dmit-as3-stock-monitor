@@ -101,7 +101,8 @@ def run(store, notifier, probe_factory=OfficialProbe, now=None, force=False):
             continue
         event["status"] = "sending"
         store.save(state)  # If this fails, Telegram is never called.
-        delivery = notifier.send(event["text"])
+        delivery = (notifier.send_event(key, event, state) if hasattr(notifier, "send_event")
+                    else notifier.send(event["text"]))
         event.update(status=delivery.status, receipt=delivery.receipt,
                      next_attempt=now + delivery.retry_after)
         store.save(state)

@@ -17,6 +17,51 @@
 
 本项目不会读取、暂停或修改已有 ChatGPT 每小时监控。
 
+## 本机 Chrome 常驻版本（2026-11-04）
+
+当前 Mac 的日常 Chrome 可读取官方缺货页，而全新独立 Chrome / Chromium 会话均被拦截。**这证明日常浏览器可读，不等于后台监控已部署成功。** 因此新增本地 Chrome 扩展方案，安装、授权及定时实测通过后才切换；原有 ChatGPT 每小时监控不作修改。
+
+### 扩展的工作方式和权限
+
+`browser-extension/` 为可审查的 Manifest V3 本地扩展，只获 `https://www.dmit.io/*` 与 `https://dmit.io/*` 的网站权限。`alarms` 每 5 分钟唤醒检查，`storage` 只存开关及脱敏状态，`scripting` 仅操作专用 DMIT 标签页，`nativeMessaging` 连接本机验证桥。
+
+`cookies` 权限在 Chrome 层面覆盖 DMIT Cookie。代码对普通浏览器仅按名称读取 `cf_clearance`、`__cf_bm`、`_cfuvid` 三种访问验证 Cookie，并在 Chrome 内复制到自己创建的专用无痕窗口；不读取或复制普通窗口的 WHMCS 登录/购物车 Cookie，不把验证 Cookie 交给 Python、GitHub、日志或聊天。使用前需同意此权限并开启“在无痕模式下启用”。不改 Chrome 安全设置，不开启普通配置的远程调试。
+
+检查只在专用无痕窗口进行，每个 PID 前仅清理这个隔离会话的 WHMCS/PHPSESSID。为避免混用，已有其他无痕窗口、专用窗口被改动时暂停采集，并记作无法验证。监控专用窗口请勿用于其他浏览。退出 Chrome 会停止检查；Mac 需开机联网、保持登录。Chrome 闹钟可能延迟，睡眠后恢复只补触发一次，不承诺严格每 5 分钟。
+
+先核对官网目录的完整名称和 PID，再读取对应购买页；负面结果必须来自 HTTP 200 的官方目标页和明确 Out of Stock 标题。有货仍要求配置接受、唯一正确购物车与月付价格一致、结算表单可继续。扩展唯一实现的 POST 是匿名产品配置，不提交订单或付款。任何验证失败均为 unknown，不通知补货。
+
+### 本机验证与通知
+
+`dmit_monitor/browser_native.py` 在本机再次校验原始页面。页面 HTML 只通过 Chrome 的本机管道临时传递，校验后丢弃，不写文件或上传。GitHub 仅保存脱敏状态、证据摘要及通知事件，使用独立 `browser-monitor-state` 分支；迁移保留既有通知轮次，避免重置去重。
+
+本机通过已授权的 GitHub CLI 凭据访问专用仓库和触发 `browser-notify.yml`。GitHub CLI 凭据仅在进程内使用，不写入配置。云端再次核对事件来源、PID、确认结果、价格及 10 分钟新鲜度，再用原有 Telegram Secrets 代发。Telegram token 和 chat ID 无需重新输入或导出到本机。代发仍受 GitHub Actions 排队影响。
+
+日志按 2 MB 轮换并保留 3 份备份；运行目录 `status.json` 提供最近检查时间、结果和下次检查时间。正常间隔 300 秒，unknown 继续原有 5/10/20/30 分钟退避及异常提醒规则。
+
+### 安装（需要用户同意本地扩展与通知桥权限）
+
+```sh
+python3 -m unittest discover -s tests -v
+node --test browser/collector.test.cjs browser-extension/safety.test.cjs
+# 默认只准备本地文件，不注册、不安装 Chrome 扩展、不启动采集
+python3 scripts/install_chrome_extension.py
+# 用户确认后，注册仅接受固定扩展 ID 的本机桥
+python3 scripts/install_chrome_extension.py --register
+```
+
+应用默认位于 `~/Library/Application Support/DMITStockMonitor`，本机桥注册文件为 `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.zoimii.dmit_monitor.json`，只接受扩展 `cnmlgapddnmggdcjgkofcmaidoigaaep`。不需要 sudo；不安装系统服务。由 Chrome 启动桥接进程和定时检查。
+
+在 `chrome://extensions` 打开开发者模式 → 加载已解压的扩展 → 选择运行目录下 `chrome-extension` → 详情中打开“在无痕模式下启用”。扩展面板选择“同意并开始监控”。源码和权限范围应先审查；不要加载来源不明的修改版本。
+
+正式切换要求：浏览器通知代发测试成功 → 扩展安装及权限确认 → 两款官网真实可读 → 至少一次无人干预的 5 分钟定时检查通过 → 才关闭旧的 `MONITOR_ENABLED` 云端采集开关。未满足时不宣称部署完成。
+
+暂停：扩展面板点“暂停”；Chrome 退出时也无法检查。卸载：先暂停并移除本扩展，再删除上述本机桥 JSON 与专用运行目录。既有 GitHub 状态应保留；不要删除整个状态分支来重试通知。
+
+另保留 `browser/collector.cjs`、`browser_service.py` 与 `install_browser_monitor.py` 作为独立 Chrome 环境的备选。当前 Mac 该路径已实测被拦截，未安装其 LaunchAgent，不应将它当作已运行的监控。只在独立配置真实可读时，安装程序才允许创建自启动项。
+
+参考：[Chrome 定时与睡眠行为](https://developer.chrome.com/docs/extensions/reference/api/alarms)、[Cookie 权限与分离存储](https://developer.chrome.com/docs/extensions/reference/api/cookies)、[本机通信权限](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)。
+
 ## 官方确认规则
 
 每个 PID 使用新的匿名 Cookie 会话，不使用你的 DMIT 登录信息。只有所有环节通过，才产生补货通知：

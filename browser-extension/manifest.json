@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "DMIT AS3 官方库存监控",
+  "version": "1.0.0",
+  "description": "仅监控官方 AS3 TINY / Pocket；通过本机桥接沿用 Telegram 通知。",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAshE3adScXBDUmAqoyjILR4t9I5vP/SnZU8+QGtN1K4F0yLP81OXjdUYJmrsqREoS2m/ejnz3an2zE/waXnV9VJl3vhkqujzEfq6BozXkJ5rbYkiW+6NP4+ND/DwXWgO8KmhnGfVLy1dTezBYWW36a+lOLqvkAz3RgtFnNSJLzJcyMZi+1o9FAQEF9vVgTkjWNPmKJQBRwEcmmaKJtfJL0E/V3MGVglMyg0gdwE7vskvnC+xeTsdyhJ5j9tTAjPENsksI9VazSJvUzGCg7H81dAbUnrHn6NAEDGZKMtXH4c+ziCS9B2+yg+S6MXBacy/RL6BpZFJYUroQrRpl3lFc3wIDAQAB",
+  "permissions": [
+    "alarms",
+    "storage",
+    "scripting",
+    "cookies",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "https://www.dmit.io/*",
+    "https://dmit.io/*"
+  ],
+  "incognito": "spanning",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "DMIT AS3 监控"
+  }
+}

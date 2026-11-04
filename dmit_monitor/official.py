@@ -118,7 +118,7 @@ def usd_price(text):
 
 def configuration(root, product):
     form = one(root.find(lambda n: n.tag == "form" and n.attrs.get("id") == "frmConfigureProduct" and n.enabled()), "configuration_form_missing")
-    title = one(form.find(lambda n: n.has_class("product-title") and not n.hidden()), "product_title_missing")
+    title = one(form.find(lambda n: (n.has_class("product-title") or n.has_class("cart-products-title")) and not n.hidden()), "product_title_missing")
     if normalized(title.text()) != normalized(product.name):
         raise SafeError("wrong_product_identity")
     if form.attrs.get("action"):

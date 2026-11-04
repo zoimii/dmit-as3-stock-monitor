@@ -1,0 +1,41 @@
+name: DMIT browser notification relay
+run-name: DMIT browser relay ${{ inputs.nonce || inputs.mode }}
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [event, test]
+        default: event
+        description: Persisted browser event or explicit notification test
+      event_id:
+        type: string
+        default: ''
+      nonce:
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: dmit-browser-notification-relay
+  cancel-in-progress: false
+jobs:
+  relay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - run: python3 -m unittest discover -s tests -v
+      - name: Relay verified browser event through existing Telegram Secrets
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BROWSER_RELAY_MODE: ${{ inputs.mode }}
+          BROWSER_EVENT_ID: ${{ inputs.event_id }}
+        run: python3 -m dmit_monitor.browser_relay
