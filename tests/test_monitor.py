@@ -308,6 +308,28 @@ class StorageTests(unittest.TestCase):
 
 
 class TelegramTests(unittest.TestCase):
+    def test_mobile_copy_whitespace_is_removed_before_request(self):
+        transport = SequenceTransport([response('{"ok":true,"result":{"message_id":10}}')])
+        delivery = Telegram(" \n" + TOKEN + "\r\n", " 1234\n", transport).send("hello")
+        self.assertEqual(delivery.status, "sent")
+        method, url, data, headers = transport.calls[0]
+        self.assertEqual(url, f"https://api.telegram.org/bot{TOKEN}/sendMessage")
+        self.assertEqual(parse_qs(data.decode())["chat_id"], ["1234"])
+
+    def test_invalid_secret_content_never_reaches_network_or_error_text(self):
+        for token, chat_id, reason in (
+            ("Use this token: " + TOKEN, "1234", "telegram_token_missing_or_invalid"),
+            (TOKEN.replace(":", "："), "1234", "telegram_token_missing_or_invalid"),
+            (TOKEN, "Id: 1234", "telegram_chat_id_missing_or_invalid"),
+            ("\n", "1234", "telegram_token_missing_or_invalid"),
+        ):
+            transport = SequenceTransport([])
+            with self.assertRaises(SafeError) as caught:
+                Telegram(token, chat_id, transport)
+            self.assertEqual(str(caught.exception), reason)
+            self.assertNotIn(TOKEN, str(caught.exception))
+            self.assertEqual(transport.calls, [])
+
     def test_success_and_rejection_and_ambiguous_network(self):
         cases = [(response('{"ok":true,"result":{"message_id":10}}'), "sent"),
                  (response('{"ok":false,"parameters":{"retry_after":600}}', status=429), "pending"),

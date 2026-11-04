@@ -16,6 +16,9 @@ class Delivery:
 
 class Telegram:
     def __init__(self, token, chat_id, transport=None):
+        # Copying values from mobile clients can include surrounding whitespace.
+        token = (token or "").strip()
+        chat_id = (chat_id or "").strip()
         if not re.fullmatch(r"\d+:[A-Za-z0-9_-]{20,}", token or ""):
             raise SafeError("telegram_token_missing_or_invalid")
         if not re.fullmatch(r"-?\d+", chat_id or ""):
